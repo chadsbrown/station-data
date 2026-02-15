@@ -13,6 +13,7 @@ dependencies = [
 [[package]]
 name = "contest-engine"
 version = "0.1.0"
+source = "git+https://github.com/chadsbrown/contest-engine#97a094729fba21458c98104167cece5e3566893e"
 dependencies = [
  "adif_parser",
  "serde",

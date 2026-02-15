@@ -8,5 +8,5 @@ name = "station_data"
 path = "src/lib.rs"
 
 [dependencies]
-contest-engine = { path = "../contest-engine" }
+contest-engine = { git = "https://github.com/chadsbrown/contest-engine" }
 thiserror = "2"
