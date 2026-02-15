@@ -1,4 +1,4 @@
-use station_data::{CtyDb, ScpDb, SuperCheck};
+use station_data::{CtyDb, DomainSource, ScpDb, StationDataFacade, SuperCheck};
 use std::env;
 use std::fs::File;
 use std::path::Path;
@@ -168,6 +168,16 @@ fn main() {
                 1
             };
             bench_scp_n1(Path::new(&args[2]), Path::new(&args[3]), max_results, passes);
+        }
+        "facade-status" => {
+            if args.len() < 4 || args.len() > 6 {
+                print_usage_and_exit();
+            }
+            let cty = Path::new(&args[2]);
+            let domain_source = parse_domain_source_arg(&args[3]);
+            let call = args.get(4).map(String::as_str);
+            let domain = args.get(5).map(String::as_str);
+            facade_status(cty, domain_source, call, domain);
         }
         _ => print_usage_and_exit(),
     }
@@ -690,6 +700,60 @@ fn load_non_comment_lines(path: &Path, uppercase: bool) -> Result<Vec<String>, s
     Ok(lines)
 }
 
+fn parse_domain_source_arg(raw: &str) -> DomainSource {
+    if raw.eq_ignore_ascii_case("builtin") {
+        DomainSource::Builtin
+    } else {
+        DomainSource::Dir(Path::new(raw).to_path_buf())
+    }
+}
+
+fn facade_status(
+    cty_path: &Path,
+    domains: DomainSource,
+    call: Option<&str>,
+    domain: Option<&str>,
+) {
+    let facade = match StationDataFacade::load_from_paths(cty_path, domains, None) {
+        Ok(facade) => facade,
+        Err(err) => {
+            eprintln!("error: failed to load StationDataFacade: {err}");
+            std::process::exit(1);
+        }
+    };
+
+    let version = facade.version();
+    println!("cty_source: {}", version.cty_source);
+    println!("cty_fingerprint: {}", version.cty_fingerprint);
+    println!("domains_source: {}", version.domains_source);
+    println!("domains_fingerprint: {}", version.domains_fingerprint);
+    println!("loaded_at: {:?}", version.loaded_at);
+
+    if let Some(call) = call {
+        let hit = facade.resolve_call(call);
+        println!("resolve_call({}): {}", call, hit.is_some());
+    }
+    if let Some(domain_name) = domain {
+        let values = facade.domain_values(domain_name);
+        println!(
+            "domain_values({}): {}",
+            domain_name,
+            values.as_ref().map(|v| v.len()).unwrap_or(0)
+        );
+    }
+
+    let m = facade.metrics();
+    println!("metrics.resolve_calls: {}", m.resolve_calls);
+    println!("metrics.resolve_hits: {}", m.resolve_hits);
+    println!("metrics.resolve_misses: {}", m.resolve_misses);
+    println!("metrics.domain_calls: {}", m.domain_calls);
+    println!("metrics.domain_hits: {}", m.domain_hits);
+    println!("metrics.domain_misses: {}", m.domain_misses);
+    println!("metrics.history_calls: {}", m.history_calls);
+    println!("metrics.history_hits: {}", m.history_hits);
+    println!("metrics.history_misses: {}", m.history_misses);
+}
+
 fn print_usage_and_exit() -> ! {
     eprintln!("usage:");
     eprintln!("  station_data_tool resolve-cty <cty.dat> <callsign>");
@@ -706,5 +770,8 @@ fn print_usage_and_exit() -> ! {
         "  station_data_tool bench-scp-suggest <scp.txt> <partials.txt> <max_results> [passes]"
     );
     eprintln!("  station_data_tool bench-scp-n1 <scp.txt> <partials.txt> <max_results> [passes]");
+    eprintln!(
+        "  station_data_tool facade-status <cty.dat> <builtin|domains_dir> [call] [domain]"
+    );
     std::process::exit(64);
 }
