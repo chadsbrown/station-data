@@ -1,0 +1,6 @@
+# wildcard patterns
+K1*
+N?1N
+*ABC
+DL*
+ZZ*

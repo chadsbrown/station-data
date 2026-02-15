@@ -1,0 +1,7 @@
+# typed partials
+K1A
+NN1
+DL1
+VE3
+K1ABC
+ZZ

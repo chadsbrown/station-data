@@ -1,0 +1,12 @@
+[package]
+name = "station-data"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "station_data"
+path = "src/lib.rs"
+
+[dependencies]
+contest-engine = { path = "../contest-engine" }
+thiserror = "2"
