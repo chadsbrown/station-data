@@ -1,6 +1,5 @@
 use station_data::{CtyDb, DomainSource, ScpDb, StationDataFacade, SuperCheck};
 use std::env;
-use std::fs::File;
 use std::path::Path;
 use std::time::Instant;
 
@@ -105,7 +104,7 @@ fn main() {
                 eprintln!("error: max_results must be > 0");
                 std::process::exit(64);
             }
-            let passes = if args.len() >= 6 {
+            let passes = if args.len() == 6 {
                 args[5].parse::<usize>().unwrap_or_else(|_| {
                     eprintln!("error: passes must be a positive integer");
                     std::process::exit(64);
@@ -121,7 +120,7 @@ fn main() {
             );
         }
         "bench-scp-suggest" => {
-            if args.len() < 5 || args.len() > 7 {
+            if args.len() < 5 || args.len() > 6 {
                 print_usage_and_exit();
             }
             let max_results = args[4].parse::<usize>().unwrap_or_else(|_| {
@@ -132,7 +131,7 @@ fn main() {
                 eprintln!("error: max_results must be > 0");
                 std::process::exit(64);
             }
-            let passes = if args.len() >= 6 {
+            let passes = if args.len() == 6 {
                 args[5].parse::<usize>().unwrap_or_else(|_| {
                     eprintln!("error: passes must be a positive integer");
                     std::process::exit(64);
@@ -341,22 +340,18 @@ fn load_calls_file(path: &Path) -> Result<Vec<String>, std::io::Error> {
     load_non_comment_lines(path, true)
 }
 
-fn check_scp(path: &Path, call: &str) {
-    let file = match File::open(path) {
-        Ok(file) => file,
-        Err(err) => {
-            eprintln!("error: failed to open SCP file {}: {err}", path.display());
-            std::process::exit(1);
-        }
-    };
-
-    let db = match ScpDb::from_reader(file) {
+fn load_scp_or_exit(path: &Path) -> ScpDb {
+    match ScpDb::from_path(path) {
         Ok(db) => db,
         Err(err) => {
-            eprintln!("error: failed to parse SCP file {}: {err}", path.display());
+            eprintln!("error: failed to load SCP file {}: {err}", path.display());
             std::process::exit(1);
         }
-    };
+    }
+}
+
+fn check_scp(path: &Path, call: &str) {
+    let db = load_scp_or_exit(path);
 
     let normalized = call.trim().to_ascii_uppercase();
     let in_scp = db.contains(&normalized);
@@ -369,21 +364,7 @@ fn check_scp(path: &Path, call: &str) {
 }
 
 fn suggest_scp(path: &Path, partial: &str, max_results: usize) {
-    let file = match File::open(path) {
-        Ok(file) => file,
-        Err(err) => {
-            eprintln!("error: failed to open SCP file {}: {err}", path.display());
-            std::process::exit(1);
-        }
-    };
-
-    let db = match ScpDb::from_reader(file) {
-        Ok(db) => db,
-        Err(err) => {
-            eprintln!("error: failed to parse SCP file {}: {err}", path.display());
-            std::process::exit(1);
-        }
-    };
+    let db = load_scp_or_exit(path);
 
     let suggestions = db.suggest(partial, max_results);
     println!("partial: {}", partial.trim().to_ascii_uppercase());
@@ -394,21 +375,7 @@ fn suggest_scp(path: &Path, partial: &str, max_results: usize) {
 }
 
 fn suggest_scp_n1(path: &Path, partial: &str, max_results: usize) {
-    let file = match File::open(path) {
-        Ok(file) => file,
-        Err(err) => {
-            eprintln!("error: failed to open SCP file {}: {err}", path.display());
-            std::process::exit(1);
-        }
-    };
-
-    let db = match ScpDb::from_reader(file) {
-        Ok(db) => db,
-        Err(err) => {
-            eprintln!("error: failed to parse SCP file {}: {err}", path.display());
-            std::process::exit(1);
-        }
-    };
+    let db = load_scp_or_exit(path);
 
     let suggestions = db.suggest_n_plus_one(partial, max_results);
     println!("partial: {}", partial.trim().to_ascii_uppercase());
@@ -442,22 +409,8 @@ fn bench_scp_contains(scp_path: &Path, calls_path: &Path, passes: usize) {
         std::process::exit(64);
     }
 
-    let file = match File::open(scp_path) {
-        Ok(file) => file,
-        Err(err) => {
-            eprintln!("error: failed to open SCP file {}: {err}", scp_path.display());
-            std::process::exit(1);
-        }
-    };
-
     let load_start = Instant::now();
-    let db = match ScpDb::from_reader(file) {
-        Ok(db) => db,
-        Err(err) => {
-            eprintln!("error: failed to parse SCP file {}: {err}", scp_path.display());
-            std::process::exit(1);
-        }
-    };
+    let db = load_scp_or_exit(scp_path);
     let load_elapsed = load_start.elapsed();
 
     let mut hits = 0usize;
@@ -512,22 +465,8 @@ fn bench_scp_search(scp_path: &Path, patterns_path: &Path, max_results: usize, p
         std::process::exit(64);
     }
 
-    let file = match File::open(scp_path) {
-        Ok(file) => file,
-        Err(err) => {
-            eprintln!("error: failed to open SCP file {}: {err}", scp_path.display());
-            std::process::exit(1);
-        }
-    };
-
     let load_start = Instant::now();
-    let db = match ScpDb::from_reader(file) {
-        Ok(db) => db,
-        Err(err) => {
-            eprintln!("error: failed to parse SCP file {}: {err}", scp_path.display());
-            std::process::exit(1);
-        }
-    };
+    let db = load_scp_or_exit(scp_path);
     let load_elapsed = load_start.elapsed();
 
     let searches = patterns.len() * passes;
@@ -577,22 +516,8 @@ fn bench_scp_suggest(scp_path: &Path, patterns_path: &Path, max_results: usize, 
         std::process::exit(64);
     }
 
-    let file = match File::open(scp_path) {
-        Ok(file) => file,
-        Err(err) => {
-            eprintln!("error: failed to open SCP file {}: {err}", scp_path.display());
-            std::process::exit(1);
-        }
-    };
-
     let load_start = Instant::now();
-    let db = match ScpDb::from_reader(file) {
-        Ok(db) => db,
-        Err(err) => {
-            eprintln!("error: failed to parse SCP file {}: {err}", scp_path.display());
-            std::process::exit(1);
-        }
-    };
+    let db = load_scp_or_exit(scp_path);
     let load_elapsed = load_start.elapsed();
 
     let iterations = partials.len() * passes;
@@ -642,22 +567,8 @@ fn bench_scp_n1(scp_path: &Path, partials_path: &Path, max_results: usize, passe
         std::process::exit(64);
     }
 
-    let file = match File::open(scp_path) {
-        Ok(file) => file,
-        Err(err) => {
-            eprintln!("error: failed to open SCP file {}: {err}", scp_path.display());
-            std::process::exit(1);
-        }
-    };
-
     let load_start = Instant::now();
-    let db = match ScpDb::from_reader(file) {
-        Ok(db) => db,
-        Err(err) => {
-            eprintln!("error: failed to parse SCP file {}: {err}", scp_path.display());
-            std::process::exit(1);
-        }
-    };
+    let db = load_scp_or_exit(scp_path);
     let load_elapsed = load_start.elapsed();
 
     let iterations = partials.len() * passes;

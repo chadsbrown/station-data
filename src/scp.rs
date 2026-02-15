@@ -1,6 +1,7 @@
 use crate::normalize::{is_plausible_callsign, normalize_call};
 use std::collections::{HashMap, HashSet};
 use std::io::Read;
+use std::path::Path;
 use thiserror::Error;
 
 pub trait SuperCheck: Send + Sync {
@@ -48,6 +49,11 @@ pub enum ScpError {
 }
 
 impl ScpDb {
+    pub fn from_path(path: &Path) -> Result<Self, ScpError> {
+        let file = std::fs::File::open(path)?;
+        Self::from_reader(file)
+    }
+
     pub fn from_reader<R: Read>(mut r: R) -> Result<Self, ScpError> {
         let mut text = String::new();
         r.read_to_string(&mut text)?;
@@ -139,15 +145,12 @@ impl SuperCheck for ScpDb {
             return Vec::new();
         }
 
-        let candidates: Vec<usize> = if partial.len() >= 2 {
-            let key: String = partial.chars().take(2).collect();
-            self.prefix_index
-                .get(&key)
-                .cloned()
-                .unwrap_or_else(|| (0..self.calls.len()).collect())
-        } else {
-            (0..self.calls.len()).collect()
-        };
+        let key: String = partial.chars().take(2).collect();
+        let candidates: Vec<usize> = self
+            .prefix_index
+            .get(&key)
+            .cloned()
+            .unwrap_or_else(|| (0..self.calls.len()).collect());
 
         let mut ranked = Vec::new();
         for idx in candidates {
@@ -461,12 +464,11 @@ fn swap_adjacent_variants(s: &str) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs::File;
     use std::path::PathBuf;
 
     fn load_sample() -> ScpDb {
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/scp_sample.txt");
-        ScpDb::from_reader(File::open(path).unwrap()).unwrap()
+        ScpDb::from_path(&path).unwrap()
     }
 
     #[test]

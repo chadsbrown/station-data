@@ -8,7 +8,7 @@ use std::path::PathBuf;
 fn station_data_wires_into_contest_engine() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let cty_path = root.join("tests/fixtures/cty_sample.dat");
-    let spec_path = root.join("../contest-engine/specs/cqww_cw.json");
+    let spec_path = root.join("tests/fixtures/cqww.json");
 
     let resolver = CtyDb::from_path(&cty_path).expect("cty fixture should load");
     let domains = DomainPack::builtin();
